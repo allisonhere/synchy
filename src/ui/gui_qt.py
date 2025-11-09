@@ -10,7 +10,8 @@ from PyQt6.QtWidgets import (
     QFrame, QSizePolicy
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
-from PyQt6.QtGui import QFont, QTextCharFormat, QColor, QPalette
+from PyQt6.QtGui import QFont, QTextCharFormat, QColor, QPalette, QIcon, QPixmap
+from PyQt6.QtSvg import QSvgRenderer
 
 from src.core.sync_engine import SyncEngine, SyncDirection, SyncMode
 from src.core.merger import MergeStrategy
@@ -96,14 +97,48 @@ class BookmarkSyncGUI(QMainWindow):
     def __init__(self):
         super().__init__()
         self.sync_worker: Optional[SyncWorker] = None
+        self._load_icons()
         self._init_ui()
         self._load_profiles()
     
+    def _load_icons(self):
+        """Load SVG icons for Firefox and Chrome."""
+        self.firefox_icon = None
+        self.chrome_icon = None
+        
+        try:
+            # Get project root directory
+            project_root = Path(__file__).parent.parent.parent
+            
+            # Load Firefox icon
+            firefox_svg = project_root / "firefox.svg"
+            if firefox_svg.exists():
+                renderer = QSvgRenderer(str(firefox_svg))
+                pixmap = QPixmap(24, 24)
+                pixmap.fill(Qt.GlobalColor.transparent)
+                renderer.render(pixmap)
+                self.firefox_icon = QIcon(pixmap)
+            
+            # Load Chrome icon
+            chrome_svg = project_root / "chrome.svg"
+            if chrome_svg.exists():
+                renderer = QSvgRenderer(str(chrome_svg))
+                pixmap = QPixmap(24, 24)
+                pixmap.fill(Qt.GlobalColor.transparent)
+                renderer.render(pixmap)
+                self.chrome_icon = QIcon(pixmap)
+        except Exception as e:
+            logger.warning(f"Could not load SVG icons: {e}")
+    
     def _init_ui(self):
         """Initialize the UI."""
-        self.setWindowTitle("🔄 Bookmark Sync - Firefox ↔ Chrome")
+        self.setWindowTitle("Bookmark Sync - Firefox ↔ Chrome")
         self.setGeometry(100, 100, 900, 900)
         self.setMinimumSize(750, 700)
+        
+        # Set window icon if available
+        if self.firefox_icon:
+            self.setWindowIcon(self.firefox_icon)
         
         # Apply dark theme to window
         self.setStyleSheet("""
@@ -125,20 +160,40 @@ class BookmarkSyncGUI(QMainWindow):
         main_layout.setSpacing(15)
         main_layout.setContentsMargins(20, 20, 20, 20)
         
-        # Header
-        header_layout = QVBoxLayout()
-        title = QLabel("🔄 Bookmark Sync")
+        # Header with icons
+        header_layout = QHBoxLayout()
+        header_text_layout = QVBoxLayout()
+        
+        # Icons side by side above title
+        if self.firefox_icon and self.chrome_icon:
+            icons_layout = QHBoxLayout()
+            icons_layout.setSpacing(15)
+            icons_layout.setContentsMargins(0, 0, 0, 5)
+            firefox_header_icon = QLabel()
+            firefox_header_icon.setPixmap(self.firefox_icon.pixmap(40, 40))
+            chrome_header_icon = QLabel()
+            chrome_header_icon.setPixmap(self.chrome_icon.pixmap(40, 40))
+            icons_layout.addStretch()
+            icons_layout.addWidget(firefox_header_icon)
+            icons_layout.addWidget(chrome_header_icon)
+            icons_layout.addStretch()
+            header_text_layout.addLayout(icons_layout)
+        
+        title = QLabel("Bookmark Sync")
         title_font = QFont()
         title_font.setPointSize(24)
         title_font.setBold(True)
         title.setFont(title_font)
         title.setStyleSheet("color: #64b5f6; margin-bottom: 5px;")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         subtitle = QLabel("Synchronize bookmarks between Firefox and Chrome")
         subtitle.setStyleSheet("color: #9e9e9e; font-size: 12px;")
+        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
-        header_layout.addWidget(title)
-        header_layout.addWidget(subtitle)
+        header_text_layout.addWidget(title)
+        header_text_layout.addWidget(subtitle)
+        header_layout.addLayout(header_text_layout)
         main_layout.addLayout(header_layout)
         
         # Browser Profiles Group
@@ -166,9 +221,22 @@ class BookmarkSyncGUI(QMainWindow):
         
         # Firefox profile
         firefox_layout = QHBoxLayout()
-        firefox_label = QLabel("🦊 Firefox Profile:")
+        firefox_label = QLabel("Firefox Profile:")
         firefox_label.setMinimumWidth(150)
         firefox_label.setStyleSheet("font-weight: bold; color: #e0e0e0;")
+        if self.firefox_icon:
+            firefox_label.setPixmap(self.firefox_icon.pixmap(20, 20))
+        firefox_label_layout = QHBoxLayout()
+        firefox_label_layout.setContentsMargins(0, 0, 0, 0)
+        firefox_label_layout.setSpacing(5)
+        if self.firefox_icon:
+            firefox_icon_label = QLabel()
+            firefox_icon_label.setPixmap(self.firefox_icon.pixmap(20, 20))
+            firefox_label_layout.addWidget(firefox_icon_label)
+        firefox_label_layout.addWidget(firefox_label)
+        firefox_label_layout.addStretch()
+        firefox_layout.addLayout(firefox_label_layout)
+        
         self.firefox_combo = QComboBox()
         self.firefox_combo.setMinimumHeight(30)
         self.firefox_combo.setStyleSheet("""
@@ -193,19 +261,28 @@ class BookmarkSyncGUI(QMainWindow):
                 selection-color: #ffffff;
             }
         """)
-        firefox_layout.addWidget(firefox_label)
         firefox_layout.addWidget(self.firefox_combo)
         profiles_layout.addLayout(firefox_layout)
         
         # Chrome profile
         chrome_layout = QHBoxLayout()
-        chrome_label = QLabel("⚡ Chrome Profile:")
+        chrome_label = QLabel("Chrome Profile:")
         chrome_label.setMinimumWidth(150)
         chrome_label.setStyleSheet("font-weight: bold; color: #e0e0e0;")
+        chrome_label_layout = QHBoxLayout()
+        chrome_label_layout.setContentsMargins(0, 0, 0, 0)
+        chrome_label_layout.setSpacing(5)
+        if self.chrome_icon:
+            chrome_icon_label = QLabel()
+            chrome_icon_label.setPixmap(self.chrome_icon.pixmap(20, 20))
+            chrome_label_layout.addWidget(chrome_icon_label)
+        chrome_label_layout.addWidget(chrome_label)
+        chrome_label_layout.addStretch()
+        chrome_layout.addLayout(chrome_label_layout)
+        
         self.chrome_combo = QComboBox()
         self.chrome_combo.setMinimumHeight(30)
         self.chrome_combo.setStyleSheet(self.firefox_combo.styleSheet())
-        chrome_layout.addWidget(chrome_label)
         chrome_layout.addWidget(self.chrome_combo)
         profiles_layout.addLayout(chrome_layout)
         
@@ -248,10 +325,18 @@ class BookmarkSyncGUI(QMainWindow):
         direction_layout.addWidget(direction_label)
         
         self.direction_group = QButtonGroup()
-        self.direction_firefox_to_chrome = QRadioButton("🦊 → ⚡ Firefox to Chrome")
+        
+        # Create radio buttons with icons
+        self.direction_firefox_to_chrome = QRadioButton("Firefox → Chrome")
         self.direction_firefox_to_chrome.setStyleSheet(radio_style)
-        self.direction_chrome_to_firefox = QRadioButton("⚡ → 🦊 Chrome to Firefox")
+        if self.firefox_icon:
+            self.direction_firefox_to_chrome.setIcon(self.firefox_icon)
+        
+        self.direction_chrome_to_firefox = QRadioButton("Chrome → Firefox")
         self.direction_chrome_to_firefox.setStyleSheet(radio_style)
+        if self.chrome_icon:
+            self.direction_chrome_to_firefox.setIcon(self.chrome_icon)
+        
         self.direction_bidirectional = QRadioButton("🔄 Bidirectional")
         self.direction_bidirectional.setStyleSheet(radio_style)
         self.direction_bidirectional.setChecked(True)
