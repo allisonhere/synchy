@@ -1,0 +1,22 @@
+{
+  "firefox": {
+    "profile": "default",
+    "path": null,
+    "auto_detect": true
+  },
+  "chrome": {
+    "profile": "Default",
+    "path": null,
+    "auto_detect": true
+  },
+  "sync": {
+    "direction": "bidirectional",
+    "merge_strategy": "keep_all",
+    "backup_before_sync": true,
+    "max_backups": 10
+  },
+  "backup": {
+    "directory": "./backups",
+    "retention_days": 30
+  }
+}

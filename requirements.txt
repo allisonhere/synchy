@@ -1,0 +1,15 @@
+# Bookmark Sync App Requirements
+
+# Core dependencies
+# Note: sqlite3, json, pathlib, datetime, hashlib are built-in Python modules
+
+# Optional: For better JSON handling and validation
+# (using built-in json for now, but can add jsonschema if needed)
+
+# For GUI (optional, Phase 5)
+# tkinter is built-in on most systems
+PyQt6>=6.5.0  # Modern GUI framework
+
+# For testing (optional)
+# pytest>=7.0.0
+# pytest-cov>=4.0.0
