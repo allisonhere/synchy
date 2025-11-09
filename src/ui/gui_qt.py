@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (
     QFrame, QSizePolicy
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
-from PyQt6.QtGui import QFont, QTextCharFormat, QColor, QPalette, QIcon, QPixmap
+from PyQt6.QtGui import QFont, QTextCharFormat, QColor, QPalette, QIcon, QPixmap, QPainter
 from PyQt6.QtSvg import QSvgRenderer
 
 from src.core.sync_engine import SyncEngine, SyncDirection, SyncMode
@@ -105,30 +105,65 @@ class BookmarkSyncGUI(QMainWindow):
         """Load SVG icons for Firefox and Chrome."""
         self.firefox_icon = None
         self.chrome_icon = None
+        self.firefox_pixmap = None
+        self.chrome_pixmap = None
         
         try:
-            # Get project root directory
-            project_root = Path(__file__).parent.parent.parent
+            # Get project root directory - try multiple paths
+            current_file = Path(__file__)
+            project_root = current_file.parent.parent.parent
+            
+            # Also try current working directory
+            cwd = Path.cwd()
+            
+            # Debug: log paths
+            logger.debug(f"Looking for icons. Project root: {project_root}, CWD: {cwd}")
             
             # Load Firefox icon
-            firefox_svg = project_root / "firefox.svg"
-            if firefox_svg.exists():
-                renderer = QSvgRenderer(str(firefox_svg))
-                pixmap = QPixmap(24, 24)
-                pixmap.fill(Qt.GlobalColor.transparent)
-                renderer.render(pixmap)
-                self.firefox_icon = QIcon(pixmap)
+            for root in [project_root, cwd]:
+                firefox_svg = root / "firefox.svg"
+                logger.debug(f"Checking Firefox SVG at: {firefox_svg} (exists: {firefox_svg.exists()})")
+                if firefox_svg.exists():
+                    renderer = QSvgRenderer(str(firefox_svg))
+                    if renderer.isValid():
+                        # Create larger pixmap for better quality
+                        pixmap = QPixmap(48, 48)
+                        pixmap.fill(Qt.GlobalColor.transparent)
+                        painter = QPainter(pixmap)
+                        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+                        renderer.render(painter)
+                        painter.end()
+                        self.firefox_icon = QIcon(pixmap)
+                        self.firefox_pixmap = pixmap
+                        logger.info(f"✓ Loaded Firefox icon from {firefox_svg}")
+                        break
+                    else:
+                        logger.warning(f"Firefox SVG renderer is not valid: {firefox_svg}")
             
             # Load Chrome icon
-            chrome_svg = project_root / "chrome.svg"
-            if chrome_svg.exists():
-                renderer = QSvgRenderer(str(chrome_svg))
-                pixmap = QPixmap(24, 24)
-                pixmap.fill(Qt.GlobalColor.transparent)
-                renderer.render(pixmap)
-                self.chrome_icon = QIcon(pixmap)
+            for root in [project_root, cwd]:
+                chrome_svg = root / "chrome.svg"
+                logger.debug(f"Checking Chrome SVG at: {chrome_svg} (exists: {chrome_svg.exists()})")
+                if chrome_svg.exists():
+                    renderer = QSvgRenderer(str(chrome_svg))
+                    if renderer.isValid():
+                        # Create larger pixmap for better quality
+                        pixmap = QPixmap(48, 48)
+                        pixmap.fill(Qt.GlobalColor.transparent)
+                        painter = QPainter(pixmap)
+                        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+                        renderer.render(painter)
+                        painter.end()
+                        self.chrome_icon = QIcon(pixmap)
+                        self.chrome_pixmap = pixmap
+                        logger.info(f"✓ Loaded Chrome icon from {chrome_svg}")
+                        break
+                    else:
+                        logger.warning(f"Chrome SVG renderer is not valid: {chrome_svg}")
         except Exception as e:
             logger.warning(f"Could not load SVG icons: {e}")
+            import traceback
+            logger.debug(traceback.format_exc())
     
     def _init_ui(self):
         """Initialize the UI."""
@@ -165,14 +200,14 @@ class BookmarkSyncGUI(QMainWindow):
         header_text_layout = QVBoxLayout()
         
         # Icons side by side above title
-        if self.firefox_icon and self.chrome_icon:
+        if self.firefox_pixmap and self.chrome_pixmap:
             icons_layout = QHBoxLayout()
             icons_layout.setSpacing(15)
             icons_layout.setContentsMargins(0, 0, 0, 5)
             firefox_header_icon = QLabel()
-            firefox_header_icon.setPixmap(self.firefox_icon.pixmap(40, 40))
+            firefox_header_icon.setPixmap(self.firefox_pixmap.scaled(40, 40, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
             chrome_header_icon = QLabel()
-            chrome_header_icon.setPixmap(self.chrome_icon.pixmap(40, 40))
+            chrome_header_icon.setPixmap(self.chrome_pixmap.scaled(40, 40, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
             icons_layout.addStretch()
             icons_layout.addWidget(firefox_header_icon)
             icons_layout.addWidget(chrome_header_icon)
@@ -221,18 +256,18 @@ class BookmarkSyncGUI(QMainWindow):
         
         # Firefox profile
         firefox_layout = QHBoxLayout()
+        firefox_label_layout = QHBoxLayout()
+        firefox_label_layout.setContentsMargins(0, 0, 0, 0)
+        firefox_label_layout.setSpacing(8)
+        
+        if self.firefox_pixmap:
+            firefox_icon_label = QLabel()
+            firefox_icon_label.setPixmap(self.firefox_pixmap.scaled(20, 20, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+            firefox_label_layout.addWidget(firefox_icon_label)
+        
         firefox_label = QLabel("Firefox Profile:")
         firefox_label.setMinimumWidth(150)
         firefox_label.setStyleSheet("font-weight: bold; color: #e0e0e0;")
-        if self.firefox_icon:
-            firefox_label.setPixmap(self.firefox_icon.pixmap(20, 20))
-        firefox_label_layout = QHBoxLayout()
-        firefox_label_layout.setContentsMargins(0, 0, 0, 0)
-        firefox_label_layout.setSpacing(5)
-        if self.firefox_icon:
-            firefox_icon_label = QLabel()
-            firefox_icon_label.setPixmap(self.firefox_icon.pixmap(20, 20))
-            firefox_label_layout.addWidget(firefox_icon_label)
         firefox_label_layout.addWidget(firefox_label)
         firefox_label_layout.addStretch()
         firefox_layout.addLayout(firefox_label_layout)
@@ -266,16 +301,18 @@ class BookmarkSyncGUI(QMainWindow):
         
         # Chrome profile
         chrome_layout = QHBoxLayout()
+        chrome_label_layout = QHBoxLayout()
+        chrome_label_layout.setContentsMargins(0, 0, 0, 0)
+        chrome_label_layout.setSpacing(8)
+        
+        if self.chrome_pixmap:
+            chrome_icon_label = QLabel()
+            chrome_icon_label.setPixmap(self.chrome_pixmap.scaled(20, 20, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+            chrome_label_layout.addWidget(chrome_icon_label)
+        
         chrome_label = QLabel("Chrome Profile:")
         chrome_label.setMinimumWidth(150)
         chrome_label.setStyleSheet("font-weight: bold; color: #e0e0e0;")
-        chrome_label_layout = QHBoxLayout()
-        chrome_label_layout.setContentsMargins(0, 0, 0, 0)
-        chrome_label_layout.setSpacing(5)
-        if self.chrome_icon:
-            chrome_icon_label = QLabel()
-            chrome_icon_label.setPixmap(self.chrome_icon.pixmap(20, 20))
-            chrome_label_layout.addWidget(chrome_icon_label)
         chrome_label_layout.addWidget(chrome_label)
         chrome_label_layout.addStretch()
         chrome_layout.addLayout(chrome_label_layout)
