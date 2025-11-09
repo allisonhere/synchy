@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import (
     QCheckBox, QProgressBar, QTextEdit, QGroupBox, QMessageBox,
     QFrame, QSizePolicy
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QRectF
 from PyQt6.QtGui import QFont, QTextCharFormat, QColor, QPalette, QIcon, QPixmap, QPainter
 from PyQt6.QtSvg import QSvgRenderer
 
@@ -126,15 +126,7 @@ class BookmarkSyncGUI(QMainWindow):
                 if firefox_svg.exists():
                     renderer = QSvgRenderer(str(firefox_svg))
                     if renderer.isValid():
-                        # Create larger pixmap for better quality
-                        pixmap = QPixmap(48, 48)
-                        # Use a light background for better visibility on dark theme
-                        pixmap.fill(QColor(45, 45, 45, 200))  # Semi-transparent dark gray
-                        painter = QPainter(pixmap)
-                        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-                        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-                        renderer.render(painter)
-                        painter.end()
+                        pixmap = self._render_svg_to_pixmap(renderer)
                         self.firefox_icon = QIcon(pixmap)
                         self.firefox_pixmap = pixmap
                         logger.info(f"✓ Loaded Firefox icon from {firefox_svg}")
@@ -149,15 +141,7 @@ class BookmarkSyncGUI(QMainWindow):
                 if chrome_svg.exists():
                     renderer = QSvgRenderer(str(chrome_svg))
                     if renderer.isValid():
-                        # Create larger pixmap for better quality
-                        pixmap = QPixmap(48, 48)
-                        # Use a light background for better visibility on dark theme
-                        pixmap.fill(QColor(45, 45, 45, 200))  # Semi-transparent dark gray
-                        painter = QPainter(pixmap)
-                        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-                        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-                        renderer.render(painter)
-                        painter.end()
+                        pixmap = self._render_svg_to_pixmap(renderer)
                         self.chrome_icon = QIcon(pixmap)
                         self.chrome_pixmap = pixmap
                         logger.info(f"✓ Loaded Chrome icon from {chrome_svg}")
@@ -168,6 +152,20 @@ class BookmarkSyncGUI(QMainWindow):
             logger.warning(f"Could not load SVG icons: {e}")
             import traceback
             logger.debug(traceback.format_exc())
+
+    def _render_svg_to_pixmap(self, renderer: QSvgRenderer) -> QPixmap:
+        """
+        Render an SVG with consistent padding so icons don't clip.
+        """
+        pixmap = QPixmap(48, 48)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        target_rect = QRectF(2, 2, 44, 44)  # leave a small margin on all sides
+        renderer.render(painter, target_rect)
+        painter.end()
+        return pixmap
     
     def _init_ui(self):
         """Initialize the UI."""
