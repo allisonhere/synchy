@@ -10,6 +10,7 @@ from src.core.sync_engine import SyncEngine, SyncDirection, SyncMode
 from src.core.merger import MergeStrategy
 from src.utils.paths import get_firefox_profiles, get_chrome_profiles
 from src.utils.logger import setup_logger
+from src.ui.theme import THEME
 
 logger = setup_logger()
 
@@ -37,6 +38,9 @@ class BookmarkSyncGUI:
         y = (self.root.winfo_screenheight() // 2) - (height // 2)
         self.root.geometry(f'{width}x{height}+{x}+{y}')
         
+        self.colors = THEME.copy()
+        self.root.configure(bg=self.colors["background"])
+        
         # Configure style
         self._configure_styles()
         
@@ -54,28 +58,71 @@ class BookmarkSyncGUI:
     
     def _configure_styles(self):
         """Configure ttk styles for a modern look."""
+        colors = self.colors
         style = ttk.Style()
         
-        # Try to use a modern theme
         try:
-            style.theme_use('clam')  # Modern, clean theme
-        except:
+            style.theme_use('clam')
+        except tk.TclError:
             pass
         
-        # Configure colors
-        style.configure('Title.TLabel', font=('Segoe UI', 20, 'bold'), foreground='#2c3e50')
-        style.configure('Heading.TLabel', font=('Segoe UI', 10, 'bold'), foreground='#34495e')
-        style.configure('Status.TLabel', font=('Segoe UI', 9), foreground='#7f8c8d')
-        style.configure('Success.TLabel', font=('Segoe UI', 9, 'bold'), foreground='#27ae60')
-        style.configure('Error.TLabel', font=('Segoe UI', 9, 'bold'), foreground='#e74c3c')
+        style.configure('TFrame', background=colors["background"])
+        style.configure('TLabel', background=colors["background"], foreground=colors["text"])
         
-        # Button styles
-        style.configure('Primary.TButton', font=('Segoe UI', 10, 'bold'), padding=10)
-        style.configure('Secondary.TButton', font=('Segoe UI', 9), padding=8)
+        style.configure('Title.TLabel', font=('Segoe UI', 22, 'bold'),
+                        foreground=colors["accent"], background=colors["background"])
+        style.configure('Subtitle.TLabel', font=('Segoe UI', 11),
+                        foreground=colors["muted_text"], background=colors["background"])
+        style.configure('Heading.TLabel', font=('Segoe UI', 10, 'bold'),
+                        foreground=colors["text"], background=colors["surface"])
+        style.configure('StatusCard.TLabel', font=('Segoe UI', 10),
+                        foreground=colors["muted_text"], background=colors["surface"])
         
-        # Frame styles
-        style.configure('Card.TLabelframe', borderwidth=1, relief='solid')
-        style.configure('Card.TLabelframe.Label', font=('Segoe UI', 10, 'bold'), foreground='#34495e')
+        style.configure('Card.TLabelframe',
+                        background=colors["surface"],
+                        borderwidth=1,
+                        relief='solid',
+                        foreground=colors["accent"])
+        style.configure('Card.TLabelframe.Label',
+                        background=colors["surface"],
+                        foreground=colors["accent"],
+                        font=('Segoe UI', 11, 'bold'))
+        
+        style.configure('Primary.TButton',
+                        font=('Segoe UI', 11, 'bold'),
+                        padding=10,
+                        foreground=colors["background"],
+                        background=colors["accent"],
+                        borderwidth=0)
+        style.map('Primary.TButton',
+                  background=[('active', colors["accent_hover"]),
+                              ('disabled', colors["border"])],
+                  foreground=[('disabled', colors["muted_text"])])
+        
+        style.configure('Secondary.TButton',
+                        font=('Segoe UI', 10),
+                        padding=8,
+                        foreground=colors["text"],
+                        background=colors["surface_alt"])
+        style.map('Secondary.TButton',
+                  background=[('active', colors["border"])])
+        
+        style.configure('Accent.Horizontal.TProgressbar',
+                        background=colors["accent"],
+                        troughcolor=colors["surface"],
+                        bordercolor=colors["surface"])
+        
+        style.configure('Modern.TCombobox',
+                        fieldbackground=colors["surface_alt"],
+                        background=colors["surface_alt"],
+                        foreground=colors["text"],
+                        bordercolor=colors["border"],
+                        padding=4)
+        style.map('Modern.TCombobox',
+                  fieldbackground=[('readonly', colors["surface_alt"])],
+                  foreground=[('readonly', colors["text"])])
+        style.configure('TRadiobutton', background=colors["surface"], foreground=colors["text"])
+        style.configure('TCheckbutton', background=colors["surface"], foreground=colors["text"])
     
     def _create_widgets(self):
         """Create GUI widgets."""
@@ -83,21 +130,27 @@ class BookmarkSyncGUI:
         self.root.grid_rowconfigure(0, weight=1)
         self.root.grid_columnconfigure(0, weight=1)
         
+        card_bg = self.colors["surface"]
+        accent = self.colors["accent"]
+        
         # Main container with padding
-        main_container = tk.Frame(self.root, bg='#ecf0f1')
+        main_container = tk.Frame(self.root, bg=self.colors["background"])
         main_container.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), padx=15, pady=15)
         main_container.grid_rowconfigure(4, weight=1)  # Log area expands
         main_container.grid_columnconfigure(0, weight=1)
         
         # Header section
-        header_frame = tk.Frame(main_container, bg='#ecf0f1')
+        header_frame = tk.Frame(main_container, bg=self.colors["background"])
         header_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
         
         title_label = ttk.Label(header_frame, text="🔄 Bookmark Sync", style='Title.TLabel')
         title_label.pack(anchor=tk.W)
         
-        subtitle_label = ttk.Label(header_frame, text="Synchronize bookmarks between Firefox and Chrome", 
-                                   style='Status.TLabel')
+        subtitle_label = ttk.Label(
+            header_frame,
+            text="Synchronize bookmarks between Firefox and Chrome",
+            style='Subtitle.TLabel'
+        )
         subtitle_label.pack(anchor=tk.W, pady=(5, 0))
         
         # Profile selection card
@@ -106,22 +159,47 @@ class BookmarkSyncGUI:
         profile_frame.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
         
         # Firefox profile
-        firefox_row = tk.Frame(profile_frame)
+        firefox_row = tk.Frame(profile_frame, bg=card_bg)
         firefox_row.pack(fill=tk.X, pady=8)
         ttk.Label(firefox_row, text="🦊 Firefox Profile:", style='Heading.TLabel').pack(side=tk.LEFT, padx=(0, 10))
         self.firefox_profile_var = tk.StringVar()
-        self.firefox_combo = ttk.Combobox(firefox_row, textvariable=self.firefox_profile_var, 
-                                         state="readonly", width=35)
-        self.firefox_combo.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
+        self.firefox_combo = ttk.Combobox(
+            firefox_row,
+            textvariable=self.firefox_profile_var,
+            state="readonly",
+            width=35,
+            style='Modern.TCombobox'
+        )
+        self.firefox_profile_value = ttk.Label(firefox_row, text="", style='StatusCard.TLabel')
         
         # Chrome profile
-        chrome_row = tk.Frame(profile_frame)
+        chrome_row = tk.Frame(profile_frame, bg=card_bg)
         chrome_row.pack(fill=tk.X, pady=8)
         ttk.Label(chrome_row, text="⚡ Chrome Profile:", style='Heading.TLabel').pack(side=tk.LEFT, padx=(0, 10))
         self.chrome_profile_var = tk.StringVar()
-        self.chrome_combo = ttk.Combobox(chrome_row, textvariable=self.chrome_profile_var, 
-                                        state="readonly", width=35)
-        self.chrome_combo.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
+        self.chrome_combo = ttk.Combobox(
+            chrome_row,
+            textvariable=self.chrome_profile_var,
+            state="readonly",
+            width=35,
+            style='Modern.TCombobox'
+        )
+        self.chrome_profile_value = ttk.Label(chrome_row, text="", style='StatusCard.TLabel')
+
+        self.profile_widgets = {
+            "firefox": {
+                "combo": self.firefox_combo,
+                "label": self.firefox_profile_value,
+                "pack": dict(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
+            },
+            "chrome": {
+                "combo": self.chrome_combo,
+                "label": self.chrome_profile_value,
+                "pack": dict(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
+            }
+        }
+        self._set_profile_display("firefox", [], "Detecting Firefox profiles…")
+        self._set_profile_display("chrome", [], "Detecting Chrome profiles…")
         
         # Sync options card
         options_frame = ttk.LabelFrame(main_container, text="⚙️ Sync Options", 
@@ -129,11 +207,11 @@ class BookmarkSyncGUI:
         options_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
         
         # Direction selection
-        direction_row = tk.Frame(options_frame)
+        direction_row = tk.Frame(options_frame, bg=card_bg)
         direction_row.pack(fill=tk.X, pady=8)
         ttk.Label(direction_row, text="Direction:", style='Heading.TLabel', width=15).pack(side=tk.LEFT, padx=(0, 10))
         self.direction_var = tk.StringVar(value="bidirectional")
-        direction_container = tk.Frame(direction_row)
+        direction_container = tk.Frame(direction_row, bg=card_bg)
         direction_container.pack(side=tk.LEFT, fill=tk.X, expand=True)
         
         ttk.Radiobutton(direction_container, text="🦊 → ⚡ Firefox to Chrome", 
@@ -144,27 +222,44 @@ class BookmarkSyncGUI:
                        variable=self.direction_var, value="bidirectional").pack(side=tk.LEFT, padx=5)
         
         # Sync mode
-        mode_row = tk.Frame(options_frame)
+        mode_row = tk.Frame(options_frame, bg=card_bg)
         mode_row.pack(fill=tk.X, pady=8)
         ttk.Label(mode_row, text="Sync Mode:", style='Heading.TLabel', width=15).pack(side=tk.LEFT, padx=(0, 10))
         self.sync_mode_var = tk.StringVar(value="Full Sync")
-        sync_mode_combo = ttk.Combobox(mode_row, textvariable=self.sync_mode_var, state="readonly",
-                                      values=["Full Sync", "Incremental Sync", "Merge Sync"], width=30)
+        sync_mode_combo = ttk.Combobox(
+            mode_row,
+            textvariable=self.sync_mode_var,
+            state="readonly",
+            values=["Full Sync", "Incremental Sync", "Merge Sync"],
+            width=30,
+            style='Modern.TCombobox'
+        )
         sync_mode_combo.pack(side=tk.LEFT, fill=tk.X, expand=True)
         sync_mode_combo.bind('<<ComboboxSelected>>', lambda e: self._on_sync_mode_change())
         
         # Merge strategy
-        strategy_row = tk.Frame(options_frame)
+        strategy_row = tk.Frame(options_frame, bg=card_bg)
         strategy_row.pack(fill=tk.X, pady=8)
         ttk.Label(strategy_row, text="Merge Strategy:", style='Heading.TLabel', width=15).pack(side=tk.LEFT, padx=(0, 10))
         self.merge_strategy_var = tk.StringVar(value="Keep All (rename duplicates)")
-        merge_combo = ttk.Combobox(strategy_row, textvariable=self.merge_strategy_var, state="readonly",
-                                  values=["Keep All (rename duplicates)", "Keep Newer (timestamp)", 
-                                         "Firefox Priority", "Chrome Priority", "Smart Merge"], width=30)
+        merge_combo = ttk.Combobox(
+            strategy_row,
+            textvariable=self.merge_strategy_var,
+            state="readonly",
+            values=[
+                "Keep All (rename duplicates)",
+                "Keep Newer (timestamp)",
+                "Firefox Priority",
+                "Chrome Priority",
+                "Smart Merge"
+            ],
+            width=30,
+            style='Modern.TCombobox'
+        )
         merge_combo.pack(side=tk.LEFT, fill=tk.X, expand=True)
         
         # Options checkboxes
-        checkbox_row = tk.Frame(options_frame)
+        checkbox_row = tk.Frame(options_frame, bg=card_bg)
         checkbox_row.pack(fill=tk.X, pady=(10, 0))
         
         self.backup_var = tk.BooleanVar(value=True)
@@ -184,10 +279,11 @@ class BookmarkSyncGUI:
         
         self.progress_var = tk.StringVar(value="✨ Ready to sync")
         self.progress_label = ttk.Label(status_frame, textvariable=self.progress_var, 
-                                       style='Status.TLabel', font=('Segoe UI', 10))
+                                       style='StatusCard.TLabel', font=('Segoe UI', 10))
         self.progress_label.pack(anchor=tk.W, pady=(0, 10))
         
-        self.progress_bar = ttk.Progressbar(status_frame, mode='indeterminate', length=400)
+        self.progress_bar = ttk.Progressbar(status_frame, mode='indeterminate', length=400,
+                                            style='Accent.Horizontal.TProgressbar')
         self.progress_bar.pack(fill=tk.X, pady=(0, 5))
         
         # Log output card - fixed height, no expansion
@@ -198,22 +294,31 @@ class BookmarkSyncGUI:
         log_frame.grid_columnconfigure(0, weight=1)
         
         # Configure log text widget with better styling - fixed height
-        self.log_text = scrolledtext.ScrolledText(log_frame, height=6, width=75, 
-                                                  font=('Consolas', 9),
-                                                  bg='#2c3e50', fg='#ecf0f1',
-                                                  insertbackground='#ecf0f1',
-                                                  selectbackground='#3498db',
-                                                  wrap=tk.WORD)
+        self.log_text = scrolledtext.ScrolledText(
+            log_frame,
+            height=6,
+            width=75,
+            font=('Consolas', 9),
+            bg=self.colors["log_bg"],
+            fg=self.colors["text"],
+            insertbackground=self.colors["accent"],
+            selectbackground=self.colors["accent_soft"],
+            selectforeground=self.colors["text"],
+            wrap=tk.WORD,
+            borderwidth=0,
+            highlightthickness=1,
+            highlightbackground=self.colors["border"]
+        )
         self.log_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
         # Configure tags for colored log messages
-        self.log_text.tag_config('info', foreground='#3498db')
-        self.log_text.tag_config('success', foreground='#27ae60')
-        self.log_text.tag_config('error', foreground='#e74c3c')
-        self.log_text.tag_config('warning', foreground='#f39c12')
+        self.log_text.tag_config('info', foreground=self.colors["accent"])
+        self.log_text.tag_config('success', foreground=self.colors["success"])
+        self.log_text.tag_config('error', foreground=self.colors["danger"])
+        self.log_text.tag_config('warning', foreground=self.colors["warning"])
         
         # Buttons section - always at bottom, never hidden
-        button_frame = tk.Frame(main_container, bg='#ecf0f1')
+        button_frame = tk.Frame(main_container, bg=self.colors["background"])
         button_frame.grid(row=5, column=0, sticky=(tk.W, tk.E), pady=(10, 0))
         
         # Primary action button
@@ -233,6 +338,29 @@ class BookmarkSyncGUI:
         # Merge strategy is most relevant for merge mode
         pass
     
+    def _set_profile_display(self, browser: str, names: list[str], empty_message: str):
+        """Show either a combobox or static label depending on profile count."""
+        widgets = self.profile_widgets[browser]
+        combo = widgets["combo"]
+        label = widgets["label"]
+        pack_args = widgets["pack"]
+        
+        combo.pack_forget()
+        label.pack_forget()
+        
+        if names:
+            combo['values'] = names
+            combo.current(0)
+        
+        if not names:
+            label.config(text=empty_message)
+            label.pack(**pack_args)
+        elif len(names) == 1:
+            label.config(text=f"Using profile: {names[0]}")
+            label.pack(**pack_args)
+        else:
+            combo.pack(**pack_args)
+    
     def _load_profiles(self):
         """Load browser profiles."""
         firefox_profiles = get_firefox_profiles()
@@ -240,17 +368,17 @@ class BookmarkSyncGUI:
         
         if firefox_profiles:
             firefox_names = [p['name'] for p in firefox_profiles]
-            self.firefox_combo['values'] = firefox_names
-            self.firefox_combo.current(0)
+            self._set_profile_display("firefox", firefox_names, "No Firefox profiles found")
         else:
             self.log("⚠️ WARNING: No Firefox profiles found", 'warning')
+            self._set_profile_display("firefox", [], "No Firefox profiles found")
         
         if chrome_profiles:
             chrome_names = [p['name'] for p in chrome_profiles]
-            self.chrome_combo['values'] = chrome_names
-            self.chrome_combo.current(0)
+            self._set_profile_display("chrome", chrome_names, "No Chrome profiles found")
         else:
             self.log("⚠️ WARNING: No Chrome profiles found", 'warning')
+            self._set_profile_display("chrome", [], "No Chrome profiles found")
     
     def log(self, message: str, tag: str = 'info'):
         """

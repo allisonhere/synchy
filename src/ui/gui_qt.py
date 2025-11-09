@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QComboBox, QRadioButton, QButtonGroup,
     QCheckBox, QProgressBar, QTextEdit, QGroupBox, QMessageBox,
-    QFrame, QSizePolicy
+    QFrame, QSizePolicy, QStackedWidget
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QRectF
 from PyQt6.QtGui import QFont, QTextCharFormat, QColor, QPalette, QIcon, QPixmap, QPainter
@@ -17,6 +17,7 @@ from src.core.sync_engine import SyncEngine, SyncDirection, SyncMode
 from src.core.merger import MergeStrategy
 from src.utils.paths import get_firefox_profiles, get_chrome_profiles
 from src.utils.logger import setup_logger
+from src.ui.theme import THEME
 from src.backup.backup_manager import BackupManager
 from src.backup.restore_manager import RestoreManager
 from pathlib import Path
@@ -96,6 +97,7 @@ class BookmarkSyncGUI(QMainWindow):
     
     def __init__(self):
         super().__init__()
+        self.colors = THEME.copy()
         self.sync_worker: Optional[SyncWorker] = None
         self._load_icons()
         self._init_ui()
@@ -167,25 +169,268 @@ class BookmarkSyncGUI(QMainWindow):
         painter.end()
         return pixmap
     
+    def _card_stylesheet(self) -> str:
+        c = self.colors
+        return f"""
+            QGroupBox {{
+                font-weight: bold;
+                font-size: 13px;
+                color: {c['text']};
+                border: 1px solid {c['border']};
+                border-radius: 8px;
+                margin-top: 12px;
+                padding-top: 18px;
+                background-color: {c['surface']};
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                left: 12px;
+                padding: 0 6px;
+                color: {c['accent']};
+            }}
+        """
+    
+    def _combo_stylesheet(self) -> str:
+        c = self.colors
+        return f"""
+            QComboBox {{
+                background-color: {c['surface_alt']};
+                color: {c['text']};
+                border: 1px solid {c['border']};
+                border-radius: 6px;
+                padding: 4px 6px;
+            }}
+            QComboBox:hover {{
+                border: 1px solid {c['accent']};
+            }}
+            QComboBox::drop-down {{
+                border: none;
+                background-color: {c['surface_alt']};
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: {c['surface_alt']};
+                color: {c['text']};
+                selection-background-color: {c['accent_soft']};
+                selection-color: {c['text']};
+            }}
+        """
+    
+    def _radio_stylesheet(self) -> str:
+        c = self.colors
+        return f"""
+            QRadioButton {{
+                color: {c['text']};
+                font-size: 12px;
+            }}
+            QRadioButton::indicator {{
+                width: 18px;
+                height: 18px;
+                border: 2px solid {c['border']};
+                border-radius: 9px;
+                background-color: {c['surface_alt']};
+            }}
+            QRadioButton::indicator:checked {{
+                background-color: {c['accent']};
+                border: 2px solid {c['accent']};
+            }}
+            QRadioButton::indicator:hover {{
+                border: 2px solid {c['accent']};
+            }}
+        """
+    
+    def _checkbox_stylesheet(self) -> str:
+        c = self.colors
+        return f"""
+            QCheckBox {{
+                color: {c['text']};
+                font-size: 12px;
+            }}
+            QCheckBox::indicator {{
+                width: 18px;
+                height: 18px;
+                border: 2px solid {c['border']};
+                border-radius: 4px;
+                background-color: {c['surface_alt']};
+            }}
+            QCheckBox::indicator:checked {{
+                background-color: {c['accent']};
+                border: 2px solid {c['accent']};
+            }}
+            QCheckBox::indicator:hover {{
+                border: 2px solid {c['accent']};
+            }}
+        """
+    
+    def _progress_stylesheet(self) -> str:
+        c = self.colors
+        return f"""
+            QProgressBar {{
+                border: 1px solid {c['border']};
+                border-radius: 6px;
+                text-align: center;
+                background-color: {c['surface']};
+            }}
+            QProgressBar::chunk {{
+                background-color: {c['accent']};
+                border-radius: 6px;
+            }}
+        """
+    
+    def _log_stylesheet(self) -> str:
+        c = self.colors
+        return f"""
+            QTextEdit {{
+                background-color: {c['log_bg']};
+                color: {c['text']};
+                border: 1px solid {c['border']};
+                border-radius: 6px;
+                padding: 10px;
+            }}
+        """
+    
+    def _primary_button_stylesheet(self) -> str:
+        c = self.colors
+        return f"""
+            QPushButton {{
+                background-color: {c['accent']};
+                color: {c['background']};
+                font-weight: bold;
+                font-size: 13px;
+                border: none;
+                border-radius: 6px;
+                padding: 10px;
+            }}
+            QPushButton:hover {{
+                background-color: {c['accent_hover']};
+            }}
+            QPushButton:disabled {{
+                background-color: {c['border']};
+                color: {c['muted_text']};
+            }}
+        """
+    
+    def _secondary_button_stylesheet(self, base: Optional[str] = None,
+                                     hover: Optional[str] = None,
+                                     text_color: Optional[str] = None) -> str:
+        c = self.colors
+        base_color = base or c['surface_alt']
+        hover_color = hover or c['secondary_hover']
+        text = text_color or (c['text'] if base is None else c['background'])
+        return f"""
+            QPushButton {{
+                background-color: {base_color};
+                color: {text};
+                font-weight: bold;
+                border: none;
+                border-radius: 6px;
+                padding: 8px 12px;
+            }}
+            QPushButton:hover {{
+                background-color: {hover_color};
+            }}
+        """
+    
+    def _add_profile_row(self, layout: QVBoxLayout, icon: Optional[QPixmap],
+                         label_text: str, combo: QComboBox):
+        """Add a tightly spaced profile row with icon, label, and combo."""
+        c = self.colors
+        row = QFrame()
+        row.setStyleSheet(f"QFrame {{ background-color: {c['surface_alt']}; border-radius: 8px; }}")
+        row_layout = QHBoxLayout(row)
+        row_layout.setContentsMargins(12, 6, 12, 6)
+        row_layout.setSpacing(12)
+        
+        icon_label = QLabel()
+        icon_label.setFixedSize(28, 28)
+        if icon:
+            scaled = icon.scaled(28, 28, Qt.AspectRatioMode.KeepAspectRatio,
+                                 Qt.TransformationMode.SmoothTransformation)
+            icon_label.setPixmap(scaled)
+        row_layout.addWidget(icon_label)
+        
+        text_block = QVBoxLayout()
+        text_block.setContentsMargins(0, 0, 0, 0)
+        text_block.setSpacing(0)
+        title = QLabel(label_text)
+        title.setStyleSheet(f"color: {c['text']}; font-weight: 600;")
+        subtitle = QLabel("Select profile")
+        subtitle.setStyleSheet(f"color: {c['muted_text']}; font-size: 11px;")
+        text_block.addWidget(title)
+        text_block.addWidget(subtitle)
+        row_layout.addLayout(text_block, stretch=1)
+        
+        combo.setMaximumWidth(240)
+        value_label = QLabel("")
+        value_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        value_label.setStyleSheet(
+            f"color: {c['muted_text']}; border: 1px solid {c['border']}; "
+            f"border-radius: 6px; padding: 6px 10px; min-width: 200px;"
+        )
+        stack = QStackedWidget()
+        stack.addWidget(combo)
+        stack.addWidget(value_label)
+        row_layout.addWidget(stack, stretch=0, alignment=Qt.AlignmentFlag.AlignRight)
+        
+        layout.addWidget(row)
+        return {
+            "subtitle": subtitle,
+            "combo": combo,
+            "value_label": value_label,
+            "stack": stack
+        }
+    
+    def _update_profile_row_state(self, key: str, names: list[str], empty_message: str):
+        """Toggle between combo selector and static label per profile availability."""
+        row = self.profile_rows[key]
+        combo = row["combo"]
+        subtitle = row["subtitle"]
+        value_label = row["value_label"]
+        stack = row["stack"]
+        
+        combo.blockSignals(True)
+        combo.clear()
+        for name in names:
+            combo.addItem(name)
+        combo.blockSignals(False)
+        if names:
+            combo.setCurrentIndex(0)
+        
+        if not names:
+            subtitle.setText(empty_message)
+            value_label.setText(empty_message)
+            stack.setCurrentIndex(1)
+        elif len(names) == 1:
+            subtitle.setText("Only one profile detected")
+            value_label.setText(names[0])
+            stack.setCurrentIndex(1)
+        else:
+            subtitle.setText("Select profile")
+            stack.setCurrentIndex(0)
+    
     def _init_ui(self):
         """Initialize the UI."""
         self.setWindowTitle("Bookmark Sync - Firefox ↔ Chrome")
         self.setGeometry(100, 100, 900, 900)
         self.setMinimumSize(750, 700)
+        colors = self.colors
+        card_style = self._card_stylesheet()
+        combo_style = self._combo_stylesheet()
+        radio_style = self._radio_stylesheet()
+        checkbox_style = self._checkbox_stylesheet()
         
         # Set window icon if available
         if self.firefox_icon:
             self.setWindowIcon(self.firefox_icon)
         
         # Apply dark theme to window
-        self.setStyleSheet("""
-            QMainWindow {
-                background-color: #1e1e1e;
-            }
-            QWidget {
-                background-color: #1e1e1e;
-                color: #e0e0e0;
-            }
+        self.setStyleSheet(f"""
+            QMainWindow {{
+                background-color: {colors['background']};
+            }}
+            QWidget {{
+                background-color: {colors['background']};
+                color: {colors['text']};
+            }}
         """)
         
         # Central widget
@@ -225,11 +470,11 @@ class BookmarkSyncGUI(QMainWindow):
         title_font.setPointSize(24)
         title_font.setBold(True)
         title.setFont(title_font)
-        title.setStyleSheet("color: #64b5f6; margin-bottom: 5px;")
+        title.setStyleSheet(f"color: {colors['accent']}; margin-bottom: 5px;")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         subtitle = QLabel("Synchronize bookmarks between Firefox and Chrome")
-        subtitle.setStyleSheet("color: #9e9e9e; font-size: 12px;")
+        subtitle.setStyleSheet(f"color: {colors['muted_text']}; font-size: 12px;")
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         header_text_layout.addWidget(title)
@@ -239,135 +484,49 @@ class BookmarkSyncGUI(QMainWindow):
         
         # Browser Profiles Group
         profiles_group = QGroupBox("🌐 Browser Profiles")
-        profiles_group.setStyleSheet("""
-            QGroupBox {
-                font-weight: bold;
-                font-size: 13px;
-                color: #e0e0e0;
-                border: 2px solid #424242;
-                border-radius: 5px;
-                margin-top: 10px;
-                padding-top: 15px;
-                background-color: #2d2d2d;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px;
-                color: #64b5f6;
-            }
-        """)
+        profiles_group.setStyleSheet(card_style)
         profiles_layout = QVBoxLayout()
-        profiles_layout.setSpacing(10)
-        
-        # Firefox profile
-        firefox_layout = QHBoxLayout()
-        firefox_label_layout = QHBoxLayout()
-        firefox_label_layout.setContentsMargins(0, 0, 0, 0)
-        firefox_label_layout.setSpacing(8)
-        
-        if self.firefox_pixmap:
-            firefox_icon_label = QLabel()
-            scaled_pixmap = self.firefox_pixmap.scaled(24, 24, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-            firefox_icon_label.setPixmap(scaled_pixmap)
-            firefox_icon_label.setFixedSize(24, 24)
-            firefox_label_layout.addWidget(firefox_icon_label)
-        
-        firefox_label = QLabel("Firefox Profile:")
-        firefox_label.setMinimumWidth(150)
-        firefox_label.setStyleSheet("font-weight: bold; color: #e0e0e0;")
-        firefox_label_layout.addWidget(firefox_label)
-        firefox_label_layout.addStretch()
-        firefox_layout.addLayout(firefox_label_layout)
+        profiles_layout.setSpacing(12)
+        profiles_layout.setContentsMargins(4, 4, 4, 4)
+        self.profile_rows = {}
         
         self.firefox_combo = QComboBox()
-        self.firefox_combo.setMinimumHeight(30)
-        self.firefox_combo.setStyleSheet("""
-            QComboBox {
-                background-color: #3d3d3d;
-                color: #e0e0e0;
-                border: 1px solid #555555;
-                border-radius: 4px;
-                padding: 5px;
-            }
-            QComboBox:hover {
-                border: 1px solid #64b5f6;
-            }
-            QComboBox::drop-down {
-                border: none;
-                background-color: #3d3d3d;
-            }
-            QComboBox QAbstractItemView {
-                background-color: #3d3d3d;
-                color: #e0e0e0;
-                selection-background-color: #64b5f6;
-                selection-color: #ffffff;
-            }
-        """)
-        firefox_layout.addWidget(self.firefox_combo)
-        profiles_layout.addLayout(firefox_layout)
-        
-        # Chrome profile
-        chrome_layout = QHBoxLayout()
-        chrome_label_layout = QHBoxLayout()
-        chrome_label_layout.setContentsMargins(0, 0, 0, 0)
-        chrome_label_layout.setSpacing(8)
-        
-        if self.chrome_pixmap:
-            chrome_icon_label = QLabel()
-            scaled_pixmap = self.chrome_pixmap.scaled(24, 24, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-            chrome_icon_label.setPixmap(scaled_pixmap)
-            chrome_icon_label.setFixedSize(24, 24)
-            chrome_label_layout.addWidget(chrome_icon_label)
-        
-        chrome_label = QLabel("Chrome Profile:")
-        chrome_label.setMinimumWidth(150)
-        chrome_label.setStyleSheet("font-weight: bold; color: #e0e0e0;")
-        chrome_label_layout.addWidget(chrome_label)
-        chrome_label_layout.addStretch()
-        chrome_layout.addLayout(chrome_label_layout)
+        self.firefox_combo.setMinimumHeight(32)
+        self.firefox_combo.setStyleSheet(combo_style)
+        self.profile_rows["firefox"] = self._add_profile_row(
+            profiles_layout,
+            icon=self.firefox_pixmap,
+            label_text="Firefox Profile",
+            combo=self.firefox_combo
+        )
         
         self.chrome_combo = QComboBox()
-        self.chrome_combo.setMinimumHeight(30)
-        self.chrome_combo.setStyleSheet(self.firefox_combo.styleSheet())
-        chrome_layout.addWidget(self.chrome_combo)
-        profiles_layout.addLayout(chrome_layout)
+        self.chrome_combo.setMinimumHeight(32)
+        self.chrome_combo.setStyleSheet(combo_style)
+        self.profile_rows["chrome"] = self._add_profile_row(
+            profiles_layout,
+            icon=self.chrome_pixmap,
+            label_text="Chrome Profile",
+            combo=self.chrome_combo
+        )
+        self._update_profile_row_state("firefox", [], "Detecting Firefox profiles…")
+        self._update_profile_row_state("chrome", [], "Detecting Chrome profiles…")
         
         profiles_group.setLayout(profiles_layout)
         main_layout.addWidget(profiles_group)
         
         # Sync Options Group
         options_group = QGroupBox("⚙️ Sync Options")
-        options_group.setStyleSheet(profiles_group.styleSheet())
+        options_group.setStyleSheet(card_style)
         
         # Style radio buttons
-        radio_style = """
-            QRadioButton {
-                color: #e0e0e0;
-                font-size: 12px;
-            }
-            QRadioButton::indicator {
-                width: 18px;
-                height: 18px;
-                border: 2px solid #555555;
-                border-radius: 9px;
-                background-color: #3d3d3d;
-            }
-            QRadioButton::indicator:hover {
-                border: 2px solid #64b5f6;
-            }
-            QRadioButton::indicator:checked {
-                background-color: #64b5f6;
-                border: 2px solid #64b5f6;
-            }
-        """
         options_layout = QVBoxLayout()
         options_layout.setSpacing(10)
         
         # Direction
         direction_label = QLabel("Direction:")
         direction_label.setMinimumWidth(150)
-        direction_label.setStyleSheet("font-weight: bold; color: #e0e0e0;")
+        direction_label.setStyleSheet(f"font-weight: bold; color: {colors['text']};")
         direction_layout = QHBoxLayout()
         direction_layout.addWidget(direction_label)
         
@@ -406,11 +565,11 @@ class BookmarkSyncGUI(QMainWindow):
         mode_layout = QHBoxLayout()
         mode_label = QLabel("Sync Mode:")
         mode_label.setMinimumWidth(150)
-        mode_label.setStyleSheet("font-weight: bold; color: #e0e0e0;")
+        mode_label.setStyleSheet(f"font-weight: bold; color: {colors['text']};")
         self.sync_mode_combo = QComboBox()
         self.sync_mode_combo.addItems(["Full Sync", "Incremental Sync", "Merge Sync"])
         self.sync_mode_combo.setMinimumHeight(30)
-        self.sync_mode_combo.setStyleSheet(self.firefox_combo.styleSheet())
+        self.sync_mode_combo.setStyleSheet(combo_style)
         mode_layout.addWidget(mode_label)
         mode_layout.addWidget(self.sync_mode_combo)
         mode_layout.addStretch()
@@ -420,7 +579,7 @@ class BookmarkSyncGUI(QMainWindow):
         strategy_layout = QHBoxLayout()
         strategy_label = QLabel("Merge Strategy:")
         strategy_label.setMinimumWidth(150)
-        strategy_label.setStyleSheet("font-weight: bold; color: #e0e0e0;")
+        strategy_label.setStyleSheet(f"font-weight: bold; color: {colors['text']};")
         self.merge_strategy_combo = QComboBox()
         self.merge_strategy_combo.addItems([
             "Keep All (rename duplicates)",
@@ -430,33 +589,13 @@ class BookmarkSyncGUI(QMainWindow):
             "Smart Merge"
         ])
         self.merge_strategy_combo.setMinimumHeight(30)
-        self.merge_strategy_combo.setStyleSheet(self.firefox_combo.styleSheet())
+        self.merge_strategy_combo.setStyleSheet(combo_style)
         strategy_layout.addWidget(strategy_label)
         strategy_layout.addWidget(self.merge_strategy_combo)
         strategy_layout.addStretch()
         options_layout.addLayout(strategy_layout)
         
         # Checkboxes
-        checkbox_style = """
-            QCheckBox {
-                color: #e0e0e0;
-                font-size: 12px;
-            }
-            QCheckBox::indicator {
-                width: 18px;
-                height: 18px;
-                border: 2px solid #555555;
-                border-radius: 3px;
-                background-color: #3d3d3d;
-            }
-            QCheckBox::indicator:hover {
-                border: 2px solid #64b5f6;
-            }
-            QCheckBox::indicator:checked {
-                background-color: #64b5f6;
-                border: 2px solid #64b5f6;
-            }
-        """
         checkbox_layout = QHBoxLayout()
         self.backup_checkbox = QCheckBox("💾 Backup before sync")
         self.backup_checkbox.setChecked(True)
@@ -466,19 +605,19 @@ class BookmarkSyncGUI(QMainWindow):
         restore_button = QPushButton("💾 Restore")
         restore_button.setMaximumHeight(28)
         restore_button.setMaximumWidth(100)
-        restore_button.setStyleSheet("""
-            QPushButton {
-                background-color: #81c784;
-                color: #ffffff;
+        restore_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {colors['success']};
+                color: {colors['background']};
                 font-weight: bold;
                 font-size: 10px;
                 border: none;
                 border-radius: 4px;
                 padding: 4px 8px;
-            }
-            QPushButton:hover {
-                background-color: #66bb6a;
-            }
+            }}
+            QPushButton:hover {{
+                background-color: {colors['success_hover']};
+            }}
         """)
         restore_button.clicked.connect(self._show_restore_dialog)
         restore_button.setToolTip("Restore from backup")
@@ -498,29 +637,18 @@ class BookmarkSyncGUI(QMainWindow):
         
         # Status Group
         status_group = QGroupBox("📊 Status")
-        status_group.setStyleSheet(profiles_group.styleSheet())
+        status_group.setStyleSheet(card_style)
         status_layout = QVBoxLayout()
         status_layout.setSpacing(10)
         
         self.status_label = QLabel("✨ Ready to sync")
-        self.status_label.setStyleSheet("font-size: 11px; color: #9e9e9e;")
+        self.status_label.setStyleSheet(f"font-size: 11px; color: {colors['muted_text']};")
         status_layout.addWidget(self.status_label)
         
         self.progress_bar = QProgressBar()
         self.progress_bar.setMinimumHeight(25)
         self.progress_bar.setTextVisible(False)
-        self.progress_bar.setStyleSheet("""
-            QProgressBar {
-                border: 2px solid #424242;
-                border-radius: 5px;
-                text-align: center;
-                background-color: #2d2d2d;
-            }
-            QProgressBar::chunk {
-                background-color: #64b5f6;
-                border-radius: 3px;
-            }
-        """)
+        self.progress_bar.setStyleSheet(self._progress_stylesheet())
         status_layout.addWidget(self.progress_bar)
         
         status_group.setLayout(status_layout)
@@ -528,21 +656,13 @@ class BookmarkSyncGUI(QMainWindow):
         
         # Log Group
         log_group = QGroupBox("📝 Activity Log")
-        log_group.setStyleSheet(profiles_group.styleSheet())
+        log_group.setStyleSheet(card_style)
         log_layout = QVBoxLayout()
         
         self.log_text = QTextEdit()
         self.log_text.setReadOnly(True)
         self.log_text.setFont(QFont("Consolas", 9))
-        self.log_text.setStyleSheet("""
-            QTextEdit {
-                background-color: #1a1a1a;
-                color: #e0e0e0;
-                border: 2px solid #424242;
-                border-radius: 5px;
-                padding: 10px;
-            }
-        """)
+        self.log_text.setStyleSheet(self._log_stylesheet())
         log_layout.addWidget(self.log_text)
         
         log_group.setLayout(log_layout)
@@ -555,48 +675,23 @@ class BookmarkSyncGUI(QMainWindow):
         self.sync_button = QPushButton("🚀 Start Sync")
         self.sync_button.setMinimumHeight(40)
         self.sync_button.setMinimumWidth(150)
-        self.sync_button.setStyleSheet("""
-            QPushButton {
-                background-color: #64b5f6;
-                color: #ffffff;
-                font-weight: bold;
-                font-size: 13px;
-                border: none;
-                border-radius: 5px;
-                padding: 10px;
-            }
-            QPushButton:hover {
-                background-color: #42a5f5;
-            }
-            QPushButton:disabled {
-                background-color: #555555;
-                color: #888888;
-            }
-        """)
+        self.sync_button.setStyleSheet(self._primary_button_stylesheet())
         self.sync_button.clicked.connect(self._start_sync)
         button_layout.addWidget(self.sync_button)
         
         clear_button = QPushButton("🗑️ Clear Log")
         clear_button.setMinimumHeight(35)
-        clear_button.setStyleSheet("""
-            QPushButton {
-                background-color: #555555;
-                color: #e0e0e0;
-                font-weight: bold;
-                border: none;
-                border-radius: 5px;
-                padding: 8px;
-            }
-            QPushButton:hover {
-                background-color: #666666;
-            }
-        """)
+        clear_button.setStyleSheet(self._secondary_button_stylesheet())
         clear_button.clicked.connect(self._clear_log)
         button_layout.addWidget(clear_button)
         
         exit_button = QPushButton("❌ Exit")
         exit_button.setMinimumHeight(35)
-        exit_button.setStyleSheet(clear_button.styleSheet())
+        exit_button.setStyleSheet(self._secondary_button_stylesheet(
+            base=self.colors["danger"],
+            hover=self.colors["danger_hover"],
+            text_color=self.colors["background"]
+        ))
         exit_button.clicked.connect(self.close)
         button_layout.addWidget(exit_button)
         
@@ -610,8 +705,12 @@ class BookmarkSyncGUI(QMainWindow):
     
     def _setup_log_colors(self):
         """Setup color formatting for log messages."""
-        # Colors are applied via HTML in log messages
-        pass
+        self.log_colors = {
+            "info": self.colors["accent"],
+            "success": self.colors["success"],
+            "error": self.colors["danger"],
+            "warning": self.colors["warning"]
+        }
     
     def _load_profiles(self):
         """Load browser profiles."""
@@ -620,15 +719,17 @@ class BookmarkSyncGUI(QMainWindow):
         
         if firefox_profiles:
             firefox_names = [p['name'] for p in firefox_profiles]
-            self.firefox_combo.addItems(firefox_names)
+            self._update_profile_row_state("firefox", firefox_names, "No Firefox profiles found")
         else:
             self._log("⚠️ WARNING: No Firefox profiles found", "warning")
+            self._update_profile_row_state("firefox", [], "No Firefox profiles found")
         
         if chrome_profiles:
             chrome_names = [p['name'] for p in chrome_profiles]
-            self.chrome_combo.addItems(chrome_names)
+            self._update_profile_row_state("chrome", chrome_names, "No Chrome profiles found")
         else:
             self._log("⚠️ WARNING: No Chrome profiles found", "warning")
+            self._update_profile_row_state("chrome", [], "No Chrome profiles found")
     
     def _log(self, message: str, level: str = "info"):
         """
@@ -640,14 +741,8 @@ class BookmarkSyncGUI(QMainWindow):
         """
         timestamp = datetime.now().strftime("%H:%M:%S")
         
-        # Color mapping for dark theme
-        colors = {
-            "info": "#64b5f6",      # Light blue
-            "success": "#81c784",   # Light green
-            "error": "#e57373",      # Light red
-            "warning": "#ffb74d"     # Light orange
-        }
-        color = colors.get(level, "#e0e0e0")
+        palette = getattr(self, "log_colors", {})
+        color = palette.get(level, self.colors["text"])
         
         # Format message with HTML
         formatted = f'<span style="color: {color};">[{timestamp}] {message}</span>'
@@ -711,7 +806,7 @@ class BookmarkSyncGUI(QMainWindow):
         self.sync_button.setEnabled(False)
         self.progress_bar.setRange(0, 0)  # Indeterminate progress
         self.status_label.setText("🔄 Syncing bookmarks...")
-        self.status_label.setStyleSheet("font-size: 11px; color: #3498db; font-weight: bold;")
+        self.status_label.setStyleSheet(f"font-size: 11px; color: {self.colors['accent']}; font-weight: bold;")
         
         # Create and start worker thread
         self.sync_worker = SyncWorker(
@@ -730,11 +825,11 @@ class BookmarkSyncGUI(QMainWindow):
         
         if success:
             self.status_label.setText("✅ Sync completed successfully!")
-            self.status_label.setStyleSheet("font-size: 11px; color: #81c784; font-weight: bold;")
+            self.status_label.setStyleSheet(f"font-size: 11px; color: {self.colors['success']}; font-weight: bold;")
             QMessageBox.information(self, "Success", message)
         else:
             self.status_label.setText("❌ Sync failed!")
-            self.status_label.setStyleSheet("font-size: 11px; color: #e57373; font-weight: bold;")
+            self.status_label.setStyleSheet(f"font-size: 11px; color: {self.colors['danger']}; font-weight: bold;")
             QMessageBox.critical(self, "Error", message)
     
     def _show_restore_dialog(self):
@@ -751,47 +846,48 @@ class BookmarkSyncGUI(QMainWindow):
             return
         
         # Create dialog
+        colors = self.colors
         dialog = QDialog(self)
         dialog.setWindowTitle("💾 Restore Backup")
         dialog.setMinimumWidth(700)
         dialog.setMinimumHeight(500)
-        dialog.setStyleSheet("""
-            QDialog {
-                background-color: #1e1e1e;
-            }
-            QLabel {
-                color: #e0e0e0;
-            }
-            QListWidget {
-                background-color: #2d2d2d;
-                color: #e0e0e0;
-                border: 2px solid #424242;
-                border-radius: 5px;
+        dialog.setStyleSheet(f"""
+            QDialog {{
+                background-color: {colors['background']};
+            }}
+            QLabel {{
+                color: {colors['text']};
+            }}
+            QListWidget {{
+                background-color: {colors['surface']};
+                color: {colors['text']};
+                border: 1px solid {colors['border']};
+                border-radius: 6px;
                 padding: 5px;
-            }
-            QListWidget::item {
+            }}
+            QListWidget::item {{
                 padding: 8px;
-                border-bottom: 1px solid #424242;
-            }
-            QListWidget::item:selected {
-                background-color: #64b5f6;
-                color: #ffffff;
-            }
-            QListWidget::item:hover {
-                background-color: #3d3d3d;
-            }
+                border-bottom: 1px solid {colors['border']};
+            }}
+            QListWidget::item:selected {{
+                background-color: {colors['accent_soft']};
+                color: {colors['text']};
+            }}
+            QListWidget::item:hover {{
+                background-color: {colors['surface_alt']};
+            }}
         """)
         
         layout = QVBoxLayout(dialog)
         
         # Header
         header_label = QLabel(f"📁 Backup Directory: {backup_manager.backup_dir.absolute()}")
-        header_label.setStyleSheet("color: #9e9e9e; font-size: 11px; padding: 10px;")
+        header_label.setStyleSheet(f"color: {colors['muted_text']}; font-size: 11px; padding: 10px;")
         layout.addWidget(header_label)
         
         # Instructions
         info_label = QLabel("Select a backup to restore:")
-        info_label.setStyleSheet("color: #e0e0e0; font-size: 12px; font-weight: bold; padding: 5px;")
+        info_label.setStyleSheet(f"color: {colors['text']}; font-size: 12px; font-weight: bold; padding: 5px;")
         layout.addWidget(info_label)
         
         # Backup list
@@ -820,36 +916,14 @@ class BookmarkSyncGUI(QMainWindow):
         button_layout.addStretch()
         
         cancel_button = QPushButton("Cancel")
-        cancel_button.setStyleSheet("""
-            QPushButton {
-                background-color: #555555;
-                color: #e0e0e0;
-                font-weight: bold;
-                border: none;
-                border-radius: 5px;
-                padding: 8px 20px;
-            }
-            QPushButton:hover {
-                background-color: #666666;
-            }
-        """)
+        cancel_button.setStyleSheet(self._secondary_button_stylesheet())
         cancel_button.clicked.connect(dialog.reject)
         button_layout.addWidget(cancel_button)
         
         restore_button = QPushButton("💾 Restore Selected")
-        restore_button.setStyleSheet("""
-            QPushButton {
-                background-color: #81c784;
-                color: #ffffff;
-                font-weight: bold;
-                border: none;
-                border-radius: 5px;
-                padding: 8px 20px;
-            }
-            QPushButton:hover {
-                background-color: #66bb6a;
-            }
-        """)
+        restore_button.setStyleSheet(self._secondary_button_stylesheet(
+            base=colors["success"], hover=colors["success_hover"], text_color=colors["background"]
+        ))
         restore_button.clicked.connect(lambda: self._restore_backup(backup_list, dialog, backup_manager))
         button_layout.addWidget(restore_button)
         
@@ -930,7 +1004,7 @@ class BookmarkSyncGUI(QMainWindow):
         if success:
             self.log("✅ Restore completed successfully!", "success")
             self.status_label.setText("✅ Restore completed successfully!")
-            self.status_label.setStyleSheet("font-size: 11px; color: #81c784; font-weight: bold;")
+            self.status_label.setStyleSheet(f"font-size: 11px; color: {self.colors['success']}; font-weight: bold;")
             QMessageBox.information(self, "Success", 
                 f"Successfully restored {source.upper()} bookmarks from backup!\n\n"
                 f"Backup: {backup['file']}\n"
@@ -938,7 +1012,7 @@ class BookmarkSyncGUI(QMainWindow):
         else:
             self.log("❌ Restore failed!", "error")
             self.status_label.setText("❌ Restore failed!")
-            self.status_label.setStyleSheet("font-size: 11px; color: #e57373; font-weight: bold;")
+            self.status_label.setStyleSheet(f"font-size: 11px; color: {self.colors['danger']}; font-weight: bold;")
             QMessageBox.critical(self, "Error", "Failed to restore backup. Check the log for details.")
 
 
