@@ -128,9 +128,11 @@ class BookmarkSyncGUI(QMainWindow):
                     if renderer.isValid():
                         # Create larger pixmap for better quality
                         pixmap = QPixmap(48, 48)
-                        pixmap.fill(Qt.GlobalColor.transparent)
+                        # Use a light background for better visibility on dark theme
+                        pixmap.fill(QColor(45, 45, 45, 200))  # Semi-transparent dark gray
                         painter = QPainter(pixmap)
                         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+                        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
                         renderer.render(painter)
                         painter.end()
                         self.firefox_icon = QIcon(pixmap)
@@ -149,9 +151,11 @@ class BookmarkSyncGUI(QMainWindow):
                     if renderer.isValid():
                         # Create larger pixmap for better quality
                         pixmap = QPixmap(48, 48)
-                        pixmap.fill(Qt.GlobalColor.transparent)
+                        # Use a light background for better visibility on dark theme
+                        pixmap.fill(QColor(45, 45, 45, 200))  # Semi-transparent dark gray
                         painter = QPainter(pixmap)
                         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+                        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
                         renderer.render(painter)
                         painter.end()
                         self.chrome_icon = QIcon(pixmap)
@@ -205,9 +209,13 @@ class BookmarkSyncGUI(QMainWindow):
             icons_layout.setSpacing(15)
             icons_layout.setContentsMargins(0, 0, 0, 5)
             firefox_header_icon = QLabel()
-            firefox_header_icon.setPixmap(self.firefox_pixmap.scaled(40, 40, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+            firefox_scaled = self.firefox_pixmap.scaled(48, 48, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            firefox_header_icon.setPixmap(firefox_scaled)
+            firefox_header_icon.setFixedSize(48, 48)
             chrome_header_icon = QLabel()
-            chrome_header_icon.setPixmap(self.chrome_pixmap.scaled(40, 40, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+            chrome_scaled = self.chrome_pixmap.scaled(48, 48, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            chrome_header_icon.setPixmap(chrome_scaled)
+            chrome_header_icon.setFixedSize(48, 48)
             icons_layout.addStretch()
             icons_layout.addWidget(firefox_header_icon)
             icons_layout.addWidget(chrome_header_icon)
@@ -262,7 +270,9 @@ class BookmarkSyncGUI(QMainWindow):
         
         if self.firefox_pixmap:
             firefox_icon_label = QLabel()
-            firefox_icon_label.setPixmap(self.firefox_pixmap.scaled(20, 20, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+            scaled_pixmap = self.firefox_pixmap.scaled(24, 24, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            firefox_icon_label.setPixmap(scaled_pixmap)
+            firefox_icon_label.setFixedSize(24, 24)
             firefox_label_layout.addWidget(firefox_icon_label)
         
         firefox_label = QLabel("Firefox Profile:")
@@ -307,7 +317,9 @@ class BookmarkSyncGUI(QMainWindow):
         
         if self.chrome_pixmap:
             chrome_icon_label = QLabel()
-            chrome_icon_label.setPixmap(self.chrome_pixmap.scaled(20, 20, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+            scaled_pixmap = self.chrome_pixmap.scaled(24, 24, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            chrome_icon_label.setPixmap(scaled_pixmap)
+            chrome_icon_label.setFixedSize(24, 24)
             chrome_label_layout.addWidget(chrome_icon_label)
         
         chrome_label = QLabel("Chrome Profile:")
